@@ -472,6 +472,7 @@ Raz<E,M> {
 							(None,Some(r_lev)) => {
 								l_vec.reverse();
 								r_vec.extend(l_vec);
+								r_stack.extend(&r_vec);
 								r_stack.archive(r_nm,r_lev);
 								(None,0,None,headtree(r_stack))
 							},
@@ -479,12 +480,14 @@ Raz<E,M> {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
 								l_stack.archive(l_nm,l_lev);
+								l_stack.extend(&l_vec);
 								(None,0,None,tailtree(l_stack))
 							},
 							(Some(l_lev),Some(r_lev)) => {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
 								l_stack.archive(l_nm,l_lev);
+								l_stack.extend(&l_vec);
 								let lc = Some(tailtree(l_stack));
 								(lc,r_lev,r_nm,headtree(r_stack))
 							},
@@ -1401,11 +1404,13 @@ mod tests {
   	r.push_left(5);
   	r.push_right(6);
   	t = r.unfocus();
+  	println!("length after 6 inserts: {:?}", t.meta());
   	r = t.focus(0usize).expect("focus on 0");
   	r.push_left(1);
   	r.push_left(2);
   	r.archive_left(3, Some(name_of_usize(3)));
   	t = r.unfocus();
+  	println!("length after 2 more: {:?}", t.meta());
   	r = t.focus(8usize).expect("focus on 8");
   	r.archive_left(5, Some(name_of_usize(5)));
   	r.push_left(9);
@@ -1414,6 +1419,7 @@ mod tests {
   	r.push_right(11);
   	r.archive_right(4, Some(name_of_usize(4)));
   	t = r.unfocus();
+  	println!("length after the last 4: {:?}", t.meta());
 
   	let sums = ns(name_of_string(String::from("sum")),||{
   		t.clone().fold_lr_meta(
@@ -1488,12 +1494,12 @@ mod tests {
 		}
 		let t = r.unfocus();
 
-		//println!("top: {:?}", t.meta());
+		println!("top: {:?}", t.meta());
 
 		for _ in 0..10 {
 			let val = (thread_rng().gen::<usize>() % 100) * 10;
-			let tree_name = name_pair(name_of_usize(val),name_of_string(String::from("tree")));
-			//println!("{:?}", tree_name);
+			let tree_name = name_of_usize(val);
+			println!("{:?}", tree_name);
 			let r = t.clone().focus(tree_name).unwrap();
 			assert_eq!(Some(val), r.peek_left());
 		}
