@@ -418,6 +418,18 @@ Raz<E,M> {
 	/// unfocus the RAZ before refocusing on a new location
 	/// in the sequence.
 	pub fn unfocus(self) -> RazTree<E,M> {
+		// helper functions
+		let to_tree_name = name_of_str("to_tree");
+		let tailtree = |stack: stack::AStack<E,u32>| {
+			ns(to_tree_name.clone(),||{
+				tree::Cursor::from(tree_of_tailstack(&stack::AtTail(stack)).unwrap())
+			})
+		};
+		let headtree = |stack: stack::AStack<E,u32>| {
+			ns(to_tree_name.clone(),||{
+				tree::Cursor::from(tree_of_headstack(&stack::AtHead(stack)).unwrap())
+			})
+		};
 		// deconstruct self
 		match self { Raz{ mut l_forest, mut l_stack, mut r_stack, mut r_forest} => {
 
@@ -425,23 +437,23 @@ Raz<E,M> {
 		let center = match (l_stack.is_empty(), r_stack.is_empty()) {
 			// possible empty stack (use the other)
 			(true,true) => None,
-			(false,true) => { Some(tree_of_tailstack(&stack::AtTail(l_stack)).unwrap().into()) },
-			(true,false) => { Some(tree_of_headstack(&stack::AtHead(r_stack)).unwrap().into()) },
+			(false,true) => { Some(tailtree(l_stack)) },
+			(true,false) => { Some(headtree(r_stack)) },
 			(false,false) => { 
 				// possible missing local vec (extract level,name)
 				let (lc,lev,nm,rc) = match (l_stack.active_len(),r_stack.active_len()) {
 					(_,0) => { 
 						let nm = r_stack.name();
 						let lev = r_stack.next_archive().unwrap().1.unwrap();
-						let lc = Some(tree_of_tailstack(&stack::AtTail(l_stack)).unwrap().into());
-						let rc = tree_of_headstack(&stack::AtHead(r_stack)).unwrap().into();
+						let lc = Some(tailtree(l_stack));
+						let rc = headtree(r_stack);
 						(lc,lev,nm,rc)
 					},
 					(0,_) => { 
 						let nm = l_stack.name();
 						let lev = l_stack.next_archive().unwrap().1.unwrap();
-						let lc = Some(tree_of_tailstack(&stack::AtTail(l_stack)).unwrap().into());
-						let rc = tree_of_headstack(&stack::AtHead(r_stack)).unwrap().into();
+						let lc = Some(tailtree(l_stack));
+						let rc = headtree(r_stack);
 						(lc,lev,nm,rc)
 					},
 					_ => {
@@ -461,20 +473,20 @@ Raz<E,M> {
 								l_vec.reverse();
 								r_vec.extend(l_vec);
 								r_stack.archive(r_nm,r_lev);
-								(None,0,None,tree_of_headstack(&stack::AtHead(r_stack)).unwrap().into())
+								(None,0,None,headtree(r_stack))
 							},
 							(Some(l_lev),None) => {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
 								l_stack.archive(l_nm,l_lev);
-								(None,0,None,tree_of_tailstack(&stack::AtTail(l_stack)).unwrap().into())
+								(None,0,None,tailtree(l_stack))
 							},
 							(Some(l_lev),Some(r_lev)) => {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
 								l_stack.archive(l_nm,l_lev);
-								let lc = Some(tree_of_tailstack(&stack::AtTail(l_stack)).unwrap().into());
-								(lc,r_lev,r_nm,tree_of_headstack(&stack::AtHead(r_stack)).unwrap().into())
+								let lc = Some(tailtree(l_stack));
+								(lc,r_lev,r_nm,headtree(r_stack))
 							},
 						}
 					},
