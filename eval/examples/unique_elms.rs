@@ -5,7 +5,7 @@
 extern crate rand;
 extern crate time;
 #[macro_use] extern crate clap;
-extern crate stats;
+//extern crate stats;
 extern crate adapton;
 extern crate iodyn;
 extern crate eval;
@@ -20,9 +20,9 @@ use std::collections::HashMap;
 use rand::{StdRng,SeedableRng};
 use eval::actions::*;
 use eval::types::*;
+use adapton::reflect;
 use adapton_lab::labviz::*;
 #[allow(unused)] use eval::types::*;
-#[allow(unused)] use eval::eval_nraz::EvalNRaz;
 #[allow(unused)] use eval::eval_iraz::EvalIRaz;
 #[allow(unused)] use eval::eval_vec::EvalVec;
 #[allow(unused)] use eval::accum_lists::*;
@@ -32,7 +32,7 @@ use iodyn::skiplist::{FinMap,Skiplist};
 use eval::test_seq::{TestMResult,EditComputeSequence};
 use adapton::engine::manage::*;
 use adapton::engine::*;
-use adapton::engine::reflect::trace::*;
+use adapton::reflect::trace::*;
 use eval::interface::*;
 
 const DEFAULT_DATASEED: usize = 0;

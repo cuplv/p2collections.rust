@@ -5,7 +5,7 @@
 extern crate rand;
 extern crate time;
 #[macro_use] extern crate clap;
-extern crate stats;
+//extern crate stats;
 extern crate adapton;
 extern crate iodyn;
 extern crate eval;
@@ -16,7 +16,6 @@ use rand::{StdRng,SeedableRng};
 use eval::actions::*;
 #[allow(unused)] use eval::types::*;
 #[allow(unused)] use eval::eval_raz_name_index::EvalRazNameIndex;
-#[allow(unused)] use eval::eval_nraz::EvalNRaz;
 #[allow(unused)] use eval::eval_iraz::EvalIRaz;
 #[allow(unused)] use eval::eval_vec::EvalVec;
 #[allow(unused)] use eval::test_seq::{TestResult,EditComputeSequence};
@@ -29,7 +28,7 @@ const DEFAULT_UNITSIZE: usize = 100;
 const DEFAULT_NAMESIZE: usize = 1;
 const DEFAULT_EDITS: usize = 1;
 const DEFAULT_CHANGES: usize = 30;
-const DEFAULT_TRIALS: usize = 10;
+//const DEFAULT_TRIALS: usize = 10;
 
 fn main () {
   let child =
@@ -52,7 +51,7 @@ fn main2() {
       -n, --namesize=[namesize] 'initial tree nodes between each art'
       -e, --edits=[edits]       'edits per batch'
       -c, --changes=[changes]   'number of incremental changes'
-      -t, --trials=[trials]     'trials to average over'
+      -t, --trials=[trials]     'trials to average over (unused)'
       -o, --outfile=[outfile]   'name for output files (of different extensions)' ")
     .get_matches();
   let dataseed = value_t!(args, "seed", usize).unwrap_or(DEFAULT_DATASEED);
@@ -62,7 +61,7 @@ fn main2() {
 	let namesize = value_t!(args, "namesize", usize).unwrap_or(DEFAULT_NAMESIZE);
 	let edits = value_t!(args, "edits", usize).unwrap_or(DEFAULT_EDITS);
 	let changes = value_t!(args, "changes", usize).unwrap_or(DEFAULT_CHANGES);
-	let trials = value_t!(args, "trials", usize).unwrap_or(DEFAULT_TRIALS);
+	//let trials = value_t!(args, "trials", usize).unwrap_or(DEFAULT_TRIALS);
   let outfile = args.value_of("outfile");
 
   //setup test
