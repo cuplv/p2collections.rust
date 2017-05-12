@@ -463,7 +463,7 @@ Raz<E,M> {
 	/// unfocus the RazTree before refocusing on a new location
 	/// in the sequence.
 	pub fn unfocus(self) -> RazTree<E,M> {
-		// helper functions
+		// helper functions for building trees from sequences
 		let tree_name = name_of_str("tree");
 		let tailtree = |stack: stack::AStack<E,u32>| {
 			ns(tree_name.clone(),||{
@@ -559,7 +559,7 @@ Raz<E,M> {
 			},
 		};
 		// step 2: join with forests
-		let left_side = if l_forest.up() != tree::UpResult::Fail {
+		let left_side = if l_forest.up_discard() != tree::UpResult::Fail {
 			let lev = l_forest.peek_level().unwrap();
 			let nm = l_forest.peek_name();
 			l_forest.down_left_force(tree::Force::Discard);
@@ -575,20 +575,19 @@ Raz<E,M> {
 		} else {
 			center
 		};
-		let complete = if r_forest.up() != tree::UpResult::Fail {
+		let complete = if r_forest.up_discard() != tree::UpResult::Fail {
 			let lev = r_forest.peek_level().unwrap();
 			let nm = r_forest.peek_name();
 			r_forest.down_right_force(tree::Force::Discard);
-			if let Some(left_side) = left_side {
-				Some(ns(name_of_str("right_forest_join"),||{
-					let mut tree = tree::Cursor::join(left_side,lev,nm,TreeData::Dummy,r_forest);
-					while tree.up() != tree::UpResult::Fail {}
-					tree
-				}))
-			} else {
-				while r_forest.up() != tree::UpResult::Fail {}
-				Some(r_forest)
-			}
+			ns(name_of_str("right_forest_join"),move||{
+				let mut tree = if let Some(left_side) = left_side {
+					tree::Cursor::join(left_side,lev,nm,TreeData::Dummy,r_forest)
+				} else {
+					r_forest
+				};
+				while tree.up() != tree::UpResult::Fail {}
+				Some(tree)
+			})
 		} else {
 			left_side
 		};
@@ -671,11 +670,11 @@ Raz<E,M> {
 	}
 	/// mark the data at the left to be part of a subsequence
 	pub fn archive_left(&mut self, level: u32, name: Option<Name>) {
-		self.l_stack.archive(name,level);
+		ns(name_of_str("zip"),move||{self.l_stack.archive(name,level)});
 	}
 	/// mark the data at the right to be part of a subsequence
 	pub fn archive_right(&mut self, level: u32, name: Option<Name>) {
-		self.r_stack.archive(name,level);
+		ns(name_of_str("zip"),move||{self.r_stack.archive(name,level)});
 	}
 
 	/// remove and return an element to the left of the cursor
