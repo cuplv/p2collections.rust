@@ -153,8 +153,16 @@ AStack<E,M> {
 		if self.is_empty() { return None }
 		if self.current.len() == 0 {
 			let (_,v) = self.archived.peek().unwrap();
-	    Some(v.last().unwrap().clone())
+			Some(v.last().unwrap().clone())
 		} else { Some(self.current.last().unwrap().clone()) }
+	}
+
+	pub fn peek_meta(&self) -> Option<M> {
+		if self.is_empty() { return None }
+		match self.archived.peek() {
+			None => None,
+			Some((m,_)) => Some(m),
+		}
 	}
 
 	/// push the entire active vector into the archive, along with

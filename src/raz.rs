@@ -32,7 +32,7 @@ use std::hash::Hash;
 use level_tree::{Tree};
 use tree_cursor as tree;
 use tree_cursor::TreeUpdate;
-use archive_stack as stack;
+use archive_stack::{self as stack, AtTail, AtHead};
 use raz_meta::{RazMeta,Navigation,FirstLast};
 use memo::{MemoFrom};
 
@@ -464,15 +464,27 @@ Raz<E,M> {
 	/// in the sequence.
 	pub fn unfocus(self) -> RazTree<E,M> {
 		// helper functions
-		let to_tree_name = name_of_str("to_tree");
+		let tree_name = name_of_str("tree");
 		let tailtree = |stack: stack::AStack<E,u32>| {
-			ns(to_tree_name.clone(),||{
-				tree::Cursor::from(tree_of_tailstack(&stack::AtTail(stack)).unwrap())
+			ns(tree_name.clone(),||{
+				tree::Cursor::from(tree_of_tailstack(&stack).unwrap())
+			})
+		};
+		let tailtree_seed = |stack: stack::AStack<E,u32>,lev,nm,sub| {
+			ns(tree_name.clone(),||{
+				let (_,_,_,t) = memo_build_left(stack,lev,nm,sub,u32::max_value());
+				tree::Cursor::from(t)
 			})
 		};
 		let headtree = |stack: stack::AStack<E,u32>| {
-			ns(to_tree_name.clone(),||{
-				tree::Cursor::from(tree_of_headstack(&stack::AtHead(stack)).unwrap())
+			ns(tree_name.clone(),||{
+				tree::Cursor::from(tree_of_headstack(&stack).unwrap())
+			})
+		};
+		let headtree_seed = |stack: stack::AStack<E,u32>,lev,nm,sub| {
+			ns(tree_name.clone(),||{
+				let (_,_,_,t) = memo_build_right(stack,lev,nm,sub,u32::max_value());
+				tree::Cursor::from(t)
 			})
 		};
 		// deconstruct self
@@ -503,8 +515,8 @@ Raz<E,M> {
 					},
 					_ => {
 						let l_nm = l_stack.name();
-						let (mut l_vec,l_lev) = l_stack.next_archive().unwrap();
 						let r_nm = r_stack.name();
+						let (mut l_vec,l_lev) = l_stack.next_archive().unwrap();
 						let (mut r_vec,r_lev) = r_stack.next_archive().unwrap();
 						match (l_lev,r_lev) {
 							// local vecs (join with other side)
@@ -517,23 +529,19 @@ Raz<E,M> {
 							(None,Some(r_lev)) => {
 								l_vec.reverse();
 								r_vec.extend(l_vec);
-								r_stack.extend(&r_vec);
-								r_stack.archive(r_nm,r_lev);
-								(None,0,None,headtree(r_stack))
+								let rc = headtree_seed(r_stack,r_lev,r_nm,leaf(r_vec,None));
+								(None,0,None,rc)
 							},
 							(Some(l_lev),None) => {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
-								l_stack.archive(l_nm,l_lev);
-								l_stack.extend(&l_vec);
-								(None,0,None,tailtree(l_stack))
+								let rc = tailtree_seed(l_stack,l_lev,l_nm,leaf(l_vec,None));
+								(None,0,None,rc)
 							},
 							(Some(l_lev),Some(r_lev)) => {
 								r_vec.reverse();
 								l_vec.extend(r_vec);
-								l_stack.archive(l_nm,l_lev);
-								l_stack.extend(&l_vec);
-								let lc = Some(tailtree(l_stack));
+								let lc = Some(tailtree_seed(l_stack,l_lev,l_nm,leaf(l_vec,None)));
 								(lc,r_lev,r_nm,headtree(r_stack))
 							},
 						}
@@ -801,32 +809,28 @@ fn bin<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
 	).unwrap()
 }
 
-// we build this tree right to left
-// note that the left branch _cannot_ have
-// the same level as its parent
-// while the right branch can.
-fn tree_of_tailstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(tailstack: &stack::AtTail<E,u32>) -> Option<Tree<TreeData<E,M>>> {
-	// memoize from_stack
-	fn from_stack_memo<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
-		s:stack::AStack<E,u32>, l:u32, n:Option<Name>, t: Tree<TreeData<E,M>>, m:u32
-	) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
-		match n.clone() {
-			None => return from_stack(s,l,n,t,m),
-			Some(nm) => {
-				let (nm,_) = name_fork(nm);
-				return memo!(nm =>> from_stack, s:s, l:l, n:n, t:t, m:m)
-			},
-		}
+// joins the subtree with the stack, creating a larger tree
+// subtree is rightmost subbranch of output tree
+// assumes the stack has some data, and levels are appropriate
+// fully consumes the stack
+fn memo_build_left<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
+	s:stack::AStack<E,u32>, l:u32, n:Option<Name>, t: Tree<TreeData<E,M>>, m:u32
+) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
+	match n.clone() {
+		None => return build_left(s,l,n,t,m),
+		Some(nm) => {
+			let (nm,_) = name_fork(nm);
+			return memo!(nm =>> build_left, s:s, l:l, n:n, t:t, m:m)
+		},
 	}
-	// main function, uses memoized recursive calls from previous function 
-	fn from_stack<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
+	fn build_left<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
 		mut stack: stack::AStack<E,u32>,
 		first_level: u32,
 		first_name: Option<Name>,
-		accum_tree: Tree<TreeData<E,M>>,
+		sub_tree: Tree<TreeData<E,M>>,
 		max_level: u32,
 	) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
-		assert!(accum_tree.level() <= first_level);
+		assert!(sub_tree.level() <= first_level);
 		assert!(first_level < max_level);
 		let next_name = stack.name();
 		let (vec,next_level) = stack.next_archive().unwrap_or_else(||{panic!("stack was unexpectedly empty")});
@@ -835,23 +839,30 @@ fn tree_of_tailstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(tailstack: &st
 			None =>
 				(stack::AStack::new(),None,None,leaf_tree),
 			Some(lev) => if lev < first_level {
-				from_stack_memo(stack,lev,next_name,leaf_tree,first_level)
+				memo_build_left(stack,lev,next_name,leaf_tree,first_level)
 			} else {
 				(stack,Some(lev),next_name,leaf_tree)
 			},
 		};
-		let new_tree = bin(small_tree, first_level, first_name, accum_tree);
+		let new_tree = bin(small_tree, first_level, first_name, sub_tree);
 		match final_level {
 			None =>
 				(stack::AStack::new(), None, None, new_tree),
 			Some(lev) => if lev < max_level {
-				from_stack_memo(shorter_stack,lev,final_name,new_tree,max_level)
+				memo_build_left(shorter_stack,lev,final_name,new_tree,max_level)
 			} else {
 				(shorter_stack,Some(lev),final_name,new_tree)
 			},
 		}
 	}
-	let mut tailstack = tailstack.0.clone();
+}
+
+// we build this tree right to left
+// note that the left branch _cannot_ have
+// the same level as its parent
+// while the right branch can.
+fn tree_of_tailstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(tailstack: &stack::AStack<E,u32>) -> Option<Tree<TreeData<E,M>>> {
+	let mut tailstack = tailstack.clone();
 	let name = tailstack.name();
 	let (level, first_tree) = match tailstack.next_archive_force() {
 		None => return None,
@@ -860,7 +871,7 @@ fn tree_of_tailstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(tailstack: &st
 		},
 		Some((vec,Some(level))) => (level,leaf(vec,None))
 	};
-	let (s,l,n,t) = from_stack_memo(tailstack, level, name, first_tree, u32::max_value());
+	let (s,l,n,t) = memo_build_left(tailstack, level, name, first_tree, u32::max_value());
 	assert!(l.is_none());
 	assert!(n.is_none());
 	assert!(s.is_empty());
@@ -869,43 +880,35 @@ fn tree_of_tailstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(tailstack: &st
 impl<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>
 MemoFrom<stack::AtTail<E,u32>>
 for RazTree<E,M> {
-	fn memo_from(tailstack: &stack::AtTail<E,u32>) -> Self {
+	fn memo_from(&AtTail(ref tailstack): &stack::AtTail<E,u32>) -> Self {
 		if let Some(tree) = tree_of_tailstack(tailstack) {
 			RazTree{meta: treetop_meta(Some(&tree)), tree: Some(tree)}	
 		} else { RazTree::empty() }
 	}
 }
 
-// we build this tree left to right
-// note that the left branch _cannot_ have
-// the same level as its parent
-// while the right branch can.
-//
-// vecs from the data are reversed, because Vec pushes
-// to the tail, but this stack was used as if pushing
-// to head. The head of a Raz in on the left.
-fn tree_of_headstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(headstack: &stack::AtHead<E,u32>) -> Option<Tree<TreeData<E,M>>> {
-	// memoize from_stack
-	fn from_stack_memo<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
-		s:stack::AStack<E,u32>, l:u32, n:Option<Name>, t: Tree<TreeData<E,M>>, m:u32
-	) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
-		match n.clone() {
-			None => return from_stack(s,l,n,t,m),
-			Some(nm) => {
-				let (nm,_) = name_fork(nm);
-				return memo!(nm =>> from_stack, s:s, l:l, n:n, t:t, m:m)
-			},
-		}
+// joins the subtree with the stack, creating a larger tree
+// subtree is rightmost subbranch of output tree
+// assumes the stack has some data, and levels are appropriate
+// fully consumes the stack
+fn memo_build_right<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
+	s:stack::AStack<E,u32>, l:u32, n:Option<Name>, t: Tree<TreeData<E,M>>, m:u32
+) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
+	match n.clone() {
+		None => return build_right(s,l,n,t,m),
+		Some(nm) => {
+			let (nm,_) = name_fork(nm);
+			return memo!(nm =>> build_right, s:s, l:l, n:n, t:t, m:m)
+		},
 	}
-	// main function, uses memoized recursive calls from previous function
-	fn from_stack<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
+	fn build_right<E: Debug+Clone+Eq+Hash+'static,M:RazMeta<E>>(
 		mut stack: stack::AStack<E,u32>,
 		first_level: u32,
 		first_name: Option<Name>,
-		accum_tree: Tree<TreeData<E,M>>,
+		sub_tree: Tree<TreeData<E,M>>,
 		max_level: u32,
 	) -> (stack::AStack<E,u32>, Option<u32>, Option<Name>, Tree<TreeData<E,M>>) {
-		assert!(accum_tree.level() < first_level);
+		assert!(sub_tree.level() < first_level);
 		assert!(first_level <= max_level);
 		let next_name = stack.name();
 		let (mut vec,next_level) = stack.next_archive().unwrap_or_else(||{panic!("stack was unexpectedly empty")});
@@ -915,23 +918,33 @@ fn tree_of_headstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(headstack: &st
 			None =>
 				(stack::AStack::new(),None,None,leaf_tree),
 			Some(lev) => if lev <= first_level {
-				from_stack_memo(stack,lev,next_name,leaf_tree,first_level)
+				memo_build_right(stack,lev,next_name,leaf_tree,first_level)
 			} else {
 				(stack,Some(lev),next_name,leaf_tree)
 			},
 		};
-		let new_tree = bin(accum_tree, first_level, first_name, small_tree);
+		let new_tree = bin(sub_tree, first_level, first_name, small_tree);
 		match final_level {
 			None =>
 				(stack::AStack::new(), None, None, new_tree),
 			Some(lev) => if lev <= max_level {
-				from_stack_memo(shorter_stack,lev,final_name,new_tree,max_level)
+				memo_build_right(shorter_stack,lev,final_name,new_tree,max_level)
 			} else {
 				(shorter_stack,Some(lev),final_name,new_tree)
 			},
 		}
 	}
-	let mut headstack = headstack.0.clone();
+}
+// we build this tree left to right
+// note that the left branch _cannot_ have
+// the same level as its parent
+// while the right branch can.
+//
+// vecs from the data are reversed, because Vec pushes
+// to the tail, but this stack was used as if pushing
+// to head. The head of a Raz in on the left.
+fn tree_of_headstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(headstack: &stack::AStack<E,u32>) -> Option<Tree<TreeData<E,M>>> {
+	let mut headstack = headstack.clone();
 	let name = headstack.name();
 	let (level, first_tree) = match headstack.next_archive_force() {
 		None => return None,
@@ -944,7 +957,7 @@ fn tree_of_headstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(headstack: &st
 			(level,leaf(vec,None))
 		}
 	};
-	let (s,l,n,t) = from_stack_memo(headstack, level, name, first_tree, u32::max_value());
+	let (s,l,n,t) = memo_build_right(headstack, level, name, first_tree, u32::max_value());
 	assert!(l.is_none());
 	assert!(n.is_none());
 	assert!(s.is_empty());
@@ -953,7 +966,7 @@ fn tree_of_headstack<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>(headstack: &st
 impl<E:Debug+Clone+Eq+Hash+'static, M:RazMeta<E>>
 MemoFrom<stack::AtHead<E,u32>>
 for RazTree<E,M> {
-	fn memo_from(headstack: &stack::AtHead<E,u32>) -> Self {
+	fn memo_from(&AtHead(ref headstack): &stack::AtHead<E,u32>) -> Self {
 		if let Some(tree) = tree_of_headstack(headstack) {
 			RazTree{meta: treetop_meta(Some(&tree)), tree: Some(tree)}	
 		} else { RazTree::empty() }
