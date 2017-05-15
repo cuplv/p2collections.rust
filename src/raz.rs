@@ -683,7 +683,7 @@ Raz<E,M> {
 	/// it will be removed
 	pub fn pop_left(&mut self) -> Option<E> {
 		if self.l_stack.is_empty() {
-			if self.l_forest.up() == tree::UpResult::Fail { return None } else {
+			if self.l_forest.up_discard() == tree::UpResult::Fail { return None } else {
 				self.l_forest.down_left_force(tree::Force::Discard);
 				while self.l_forest.down_right() {}
 				match self.l_forest.peek() {
@@ -700,7 +700,7 @@ Raz<E,M> {
 	/// it will be removed
 	pub fn pop_right(&mut self) -> Option<E> {
 		if self.r_stack.is_empty() {
-			if self.r_forest.up() == tree::UpResult::Fail { return None } else {
+			if self.r_forest.up_discard() == tree::UpResult::Fail { return None } else {
 				self.r_forest.down_right_force(tree::Force::Discard);
 				while self.r_forest.down_left() {}
 				match self.r_forest.peek() {
@@ -710,6 +710,49 @@ Raz<E,M> {
 			}
 		}
 		self.r_stack.pop()
+	}
+
+	/// remove and return an element to the left of the cursor
+	/// along with any level or name that was consumed 
+	///
+	/// if an archive point is to the left of the cursor,
+	/// it will be removed and the level returned
+	/// if there was also a name present it will be returned
+	pub fn pop_left_level_name(&mut self) -> Option<(E,Option<(u32,Option<Name>)>)> {
+		if self.l_stack.is_empty() {
+			if self.l_forest.up_discard() == tree::UpResult::Fail { return None } else {
+				let lev = self.l_forest.peek_level().unwrap();
+				let nm = self.l_forest.peek_name();
+				self.l_forest.down_left_force(tree::Force::Discard);
+				while self.l_forest.down_right() {}
+				match self.l_forest.peek() {
+					Some(TreeData::Leaf(ref data)) => self.l_stack.extend(&***data),
+					_ => panic!("pop_left_level_name: no left tree leaf"),
+				}
+				Some((self.l_stack.pop().unwrap(), Some((lev, nm))))
+			}
+		} else { self.l_stack.pop().map(|val|{ (val,None) }) }
+	}
+	/// remove and return an element to the right of the cursor
+	/// along with any level or name that was consumed 
+	///
+	/// if an archive point is to the right of the cursor,
+	/// it will be removed and the level returned
+	/// if there was also a name present it will be returned
+	pub fn pop_right_level_name(&mut self) -> Option<(E,Option<(u32,Option<Name>)>)> {
+		if self.r_stack.is_empty() {
+			if self.r_forest.up_discard() == tree::UpResult::Fail { return None } else {
+				let lev = self.r_forest.peek_level().unwrap();
+				let nm = self.r_forest.peek_name();
+				self.r_forest.down_right_force(tree::Force::Discard);
+				while self.r_forest.down_left() {}
+				match self.r_forest.peek() {
+					Some(TreeData::Leaf(ref data)) => self.r_stack.extend_rev(&***data),
+					_ => panic!("pop_right_level_name: no right tree leaf"),
+				}
+				Some((self.r_stack.pop().unwrap(), Some((lev, nm))))
+			}
+		} else { self.r_stack.pop().map(|val|{ (val,None) }) }
 	}
 }
 
